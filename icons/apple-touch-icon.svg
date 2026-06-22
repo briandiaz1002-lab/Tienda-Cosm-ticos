@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">TechInventory</title>
+  <desc id="desc">Icono de la PWA TechInventory</desc>
+  <rect width="512" height="512" rx="112" fill="#0F2149"/>
+  <circle cx="392" cy="114" r="116" fill="#0EA5E9" opacity="0.18"/>
+  <circle cx="112" cy="412" r="98" fill="#06B6D4" opacity="0.14"/>
+  <path d="M146 174 256 112l110 62v130l-110 62-110-62V174Z" fill="#EEF2FB"/>
+  <path d="m146 174 110 62 110-62M256 236v130" fill="none" stroke="#0EA5E9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M202 144 312 207" stroke="#06B6D4" stroke-width="20" stroke-linecap="round" opacity="0.85"/>
+  <rect x="142" y="384" width="228" height="38" rx="19" fill="#38BDF8"/>
+  <rect x="174" y="434" width="164" height="20" rx="10" fill="#E4EBFA" opacity="0.78"/>
+</svg>
