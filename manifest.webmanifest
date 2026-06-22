@@ -1,0 +1,27 @@
+{
+  "name": "TechInventory - Sistema de Gestión",
+  "short_name": "TechInventory",
+  "description": "Sistema PWA para gestionar inventario, ventas, movimientos y finanzas de tienda.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#EEF2FB",
+  "theme_color": "#0F2149",
+  "categories": ["business", "productivity", "finance"],
+  "lang": "es",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
