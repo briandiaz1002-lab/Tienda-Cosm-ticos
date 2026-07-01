@@ -1973,6 +1973,10 @@
                         <label class="form-label">Stock Mínimo *</label>
                         <input type="number" id="productMinStock" required min="0" class="form-input">
                     </div>
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Notas (opcional)</label>
+                        <textarea id="productNotes" class="form-input" rows="2" maxlength="500" placeholder="Ej: tono agotado en fábrica, pedir con 2 semanas de antelación…" style="resize:vertical;font-family:'Plus Jakarta Sans',sans-serif"></textarea>
+                    </div>
                 </div>
                 <input type="hidden" id="productId">
                 <div class="modal-footer" style="padding:20px 0 0;margin-top:8px">
@@ -2555,7 +2559,7 @@ function applyMovementFilters() {
 
     const filtered = sorted.filter(m => {
         if (type && m.type !== type) return false;
-        if (date && new Date(m.date).toDateString() !== new Date(date).toDateString()) return false;
+        if (date && toLocalYMD(m.date) !== date) return false;
         if (!productQuery) return true;
         const items = m.items || [{ productId: m.productId }];
         return items.some(item => {
@@ -2758,12 +2762,15 @@ function renderPage() {
         const costPendingBadge = (product.costPending && currentRole === 'admin')
             ? `<span title="Sin precio de compra — ingresado por vendedora" style="margin-left:6px;background:#FFF3CD;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 6px;font-size:10.5px;font-weight:700;cursor:help">💲 Costo pendiente</span>`
             : '';
+        const notesIcon = product.notes
+            ? `<span title="${escHtml(product.notes)}" style="cursor:help;margin-left:5px;font-size:13px">📝</span>`
+            : '';
         const isSelected = selectedProductIds.has(product.id);
         const sinStock   = product.quantity === 0;
         tbody.innerHTML += `
             <tr class="${sinStock?'zero-stock-row':''}">
                 <td style="width:40px;text-align:center"><input type="checkbox" class="product-checkbox" data-id="${product.id}" ${isSelected&&!sinStock?'checked':''} ${sinStock?'disabled title="Sin stock — no se puede vender"':''} onchange="toggleProductSelection(${product.id}, this.checked)" style="${sinStock?'opacity:0.3;cursor:not-allowed':''}"></td>
-                <td style="font-weight:600">${product.brand}${alertIcon}${costPendingBadge}</td>
+                <td style="font-weight:600">${product.brand}${alertIcon}${costPendingBadge}${notesIcon}</td>
                 <td style="color:var(--text-2)">${product.color}</td>
                 <td><span class="badge badge-info">${product.category}</span></td>
                 <td style="font-weight:700;font-size:15px">${product.quantity}</td>
@@ -2880,6 +2887,7 @@ function openProductModal(productId=null) {
             document.getElementById('productSalePrice').value = product.salePrice||'';
             document.getElementById('productLocation').value = product.location;
             document.getElementById('productMinStock').value = product.minStock;
+            document.getElementById('productNotes').value = product.notes || '';
             // F1: mostrar margen actual al editar (solo admin)
             if (role.canViewCost) setTimeout(updateMarginHint, 50);
             const qtyInput = document.getElementById('productQuantity');
@@ -2931,6 +2939,7 @@ async function saveProduct(event) {
     const quantity=parseInt(document.getElementById('productQuantity').value);
     const salePriceRaw=parseFloat(document.getElementById('productSalePrice').value);
     const minStock=parseInt(document.getElementById('productMinStock').value)||0;
+    const notes=document.getElementById('productNotes').value.trim();
     const role = ROLES[currentRole];
 
     // Precio de compra — solo admin lo ingresa
@@ -2972,7 +2981,7 @@ async function saveProduct(event) {
             costPending = originalProduct?.costPending || false;
         }
     }
-    const productData = { brand, color, category, quantity, price, salePrice, location, minStock, dateAdded: originalDateAdded, costPending };
+    const productData = { brand, color, category, quantity, price, salePrice, location, minStock, notes, dateAdded: originalDateAdded, costPending };
     // F1: calcular y almacenar margen (solo si hay precio de costo)
     if (price > 0) {
         productData.margin    = roundCUP(salePrice - price);
@@ -3094,6 +3103,20 @@ async function deleteProduct(id) {
 // Utilidad de sanitización para innerHTML (no existe en base desktop 5.3)
 function escHtml(str) {
     return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// FIX filtro de fecha: convierte un timestamp a "YYYY-MM-DD" en horario LOCAL.
+// Los inputs type="date" entregan el string "YYYY-MM-DD" tal cual el día elegido,
+// sin zona horaria. Comparar timestamps vía Date.toDateString() se rompía porque
+// new Date("YYYY-MM-DD") se interpreta como medianoche UTC, y al convertir de vuelta
+// a horario local (detrás de UTC) caía en el día anterior.
+// Comparar strings "YYYY-MM-DD" directamente evita el problema por completo.
+function toLocalYMD(timestamp) {
+    const d = new Date(timestamp);
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
 }
 
 function toggleProductSelection(productId, checked) {
@@ -3993,7 +4016,7 @@ async function loadSupervision() {
     const filterDate = document.getElementById('supervisionFilterDate').value;
     let filtered = movements.filter(m=>{
         const matchType = !filterType||m.type===filterType;
-        const matchDate = !filterDate||new Date(m.date).toDateString()===new Date(filterDate).toDateString();
+        const matchDate = !filterDate||toLocalYMD(m.date)===filterDate;
         const matchUser = !filterUser||m.registeredBy===filterUser;
         return matchType&&matchDate&&matchUser&&!m.undone;
     });
