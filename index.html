@@ -1559,6 +1559,7 @@
                         <option value="">Todos los tipos</option>
                         <option value="Entrada">Entrada</option>
                         <option value="Salida">Salida</option>
+                        <option value="Cuenta Casa">Cuenta Casa</option>
                         <option value="Merma">Merma</option>
                         <option value="Transferencia">Transferencia</option>
                         <option value="Devolución">Devolución</option>
@@ -2001,6 +2002,7 @@
                             <option value="">Seleccionar…</option>
                             <option value="Entrada">Entrada (Compra / Reposición)</option>
                             <option value="Salida">Salida (Venta)</option>
+                            <option value="Cuenta Casa">Cuenta Casa</option>
                             <option value="Merma">Merma (Pérdida / Daño)</option>
                             <option value="Transferencia">Transferencia (Entre ubicaciones)</option>
                             <option value="Devolución">Devolución</option>
@@ -2389,7 +2391,7 @@ const USERS = {
     'NenashopVH': { hash: '9492bc3cc850f46fa2b2048c6f7cd93a545030f322dae5642bb01f4180e0ebe6', role: 'vendor_vhdal', label: 'Vendedora VHdal' }
 };
 const ROLES = {
-    admin: { sections:['dashboard','products','movements','reports','supervision','noticeboard','finances'], locations:['Tienda','Almacén','VHdal'], movements:['Entrada','Salida','Merma','Transferencia','Devolución'], canViewAllLocations:true, canExport:true, canBackup:true, canEditExchangeRate:true, canDeleteProduct:true, canCreateProduct:true, canQuickSale:true, canViewCost:true },
+    admin: { sections:['dashboard','products','movements','reports','supervision','noticeboard','finances'], locations:['Tienda','Almacén','VHdal'], movements:['Entrada','Salida','Cuenta Casa','Merma','Transferencia','Devolución'], canViewAllLocations:true, canExport:true, canBackup:true, canEditExchangeRate:true, canDeleteProduct:true, canCreateProduct:true, canQuickSale:true, canViewCost:true },
     vendor_tienda: { sections:['products','movements','noticeboard'], locations:['Tienda','Almacén'], movements:['Entrada','Salida','Merma','Devolución'], canViewAllLocations:false, canExport:false, canBackup:true, canEditExchangeRate:false, canDeleteProduct:false, canCreateProduct:true, canQuickSale:true, canViewCost:false, entradaCreateOnly:true },
     vendor_vhdal:  { sections:['products','movements','noticeboard'], locations:['VHdal'],            movements:['Salida','Merma','Devolución'],           canViewAllLocations:false, canExport:false, canBackup:true, canEditExchangeRate:false, canDeleteProduct:false, canCreateProduct:false, canQuickSale:true, canViewCost:false }
 };
@@ -3552,6 +3554,7 @@ function renderMovementsPage() {
         const date = new Date(movement.date).toLocaleString('es-ES');
         let badgeClass = 'badge-success';
         if (movement.type==='Salida') badgeClass='badge-warning';
+        if (movement.type==='Cuenta Casa') badgeClass='badge-info';
         if (movement.type==='Merma') badgeClass='badge-danger';
         if (movement.undone) badgeClass='badge-undone';
 
@@ -3632,7 +3635,7 @@ function handleMovementTypeChange() {
     const type=document.getElementById('movementType').value;
     document.getElementById('transferLocationDiv').classList.toggle('hidden',type!=='Transferencia');
     document.getElementById('movementNewLocation').required=(type==='Transferencia');
-    document.getElementById('sourceLocationDiv').classList.toggle('hidden',!(type==='Salida'||type==='Merma'));
+    document.getElementById('sourceLocationDiv').classList.toggle('hidden',!(type==='Salida'||type==='Cuenta Casa'||type==='Merma'));
     const filterLoc=document.getElementById('movementSourceLocation').value;
     document.getElementById('saleItemsList').innerHTML=''; saleItemsCount=0; addSaleItem(filterLoc);
 }
@@ -3664,7 +3667,7 @@ async function saveMovement(event) {
         if (!quantity||quantity<1) { await appAlert('La cantidad debe ser mayor que cero.','warning','⚠️ Cantidad inválida'); return; }
         const product=await getRecordById('products',productId);
         if (!product) { await appAlert('No se pudo encontrar el producto.','error','Error'); return; }
-        if ((type==='Salida'||type==='Merma'||type==='Transferencia')&&quantity>product.quantity) {
+        if ((type==='Salida'||type==='Cuenta Casa'||type==='Merma'||type==='Transferencia')&&quantity>product.quantity) {
             await appAlert(`Stock insuficiente para "${product.brand}".\nDisponible: ${product.quantity} · Solicitado: ${quantity}`,'warning','⚠️ Stock insuficiente'); return;
         }
         itemsToProcess.push({productId, quantity, product});
@@ -3692,7 +3695,9 @@ async function saveMovement(event) {
 
     for (const {productId, quantity, product} of itemsToProcess) {
         const frozenCost  = roundCUP(product.price);
-        const frozenSale  = (type==='Salida'||type==='Devolución') ? roundCUP(product.salePrice||product.price) : null;
+        const frozenSale  = (type==='Salida'||type==='Devolución') ? roundCUP(product.salePrice||product.price)
+                            : (type==='Cuenta Casa') ? frozenCost
+                            : null;
         const itemLocation = product.location;
         let destProductId = null, destLocation = null;
 
@@ -3700,7 +3705,7 @@ async function saveMovement(event) {
 
         if (type==='Entrada'||type==='Devolución') {
             prodInMap.quantity += quantity;
-        } else if (type==='Salida'||type==='Merma') {
+        } else if (type==='Salida'||type==='Cuenta Casa'||type==='Merma') {
             prodInMap.quantity -= quantity;
         } else if (type==='Transferencia') {
             prodInMap.quantity -= quantity;
@@ -3896,7 +3901,7 @@ async function undoMovement(movementId) {
     for (const item of items) {
         const product=await getRecordById('products',item.productId);
         if (!product) continue;
-        if (movement.type==='Salida'||movement.type==='Merma') { product.quantity+=item.quantity; }
+        if (movement.type==='Salida'||movement.type==='Cuenta Casa'||movement.type==='Merma') { product.quantity+=item.quantity; }
         else if (movement.type==='Entrada'||movement.type==='Devolución') { product.quantity=Math.max(0,product.quantity-item.quantity); }
         await updateRecord('products',product);
     }
@@ -4602,7 +4607,7 @@ async function exportMovementsExcel() {
     headerRow.font  = {bold:true,color:{argb:'FFFFFFFF'}};
     headerRow.fill  = {type:'pattern',pattern:'solid',fgColor:{argb:'FF0F2149'}};
     headerRow.height = 24;
-    const typeColors = {'Entrada':'FFD1FAE5','Salida':'FFFFF3CD','Merma':'FFFFE4E6','Transferencia':'FFE0F2FE','Devolución':'FFF3E8FF'};
+    const typeColors = {'Entrada':'FFD1FAE5','Salida':'FFFFF3CD','Cuenta Casa':'FFEFF6FF','Merma':'FFFFE4E6','Transferencia':'FFE0F2FE','Devolución':'FFF3E8FF'};
     const active = movements.filter(m => !m.undone);
     active.sort((a,b) => b.date - a.date);
     for (const m of active) {
@@ -5744,6 +5749,7 @@ async function loadPL() {
     const sales     = movements.filter(m => m.type === 'Salida'    && inRange(m));
     const returns_  = movements.filter(m => m.type === 'Devolución' && inRange(m));
     const mermas    = movements.filter(m => m.type === 'Merma'      && inRange(m));
+    const cuentaCasa= movements.filter(m => m.type === 'Cuenta Casa' && inRange(m));
     const expsRange = expenses.filter(e => e.date >= from.getTime() && e.date <= to.getTime());
 
     function sumItems(movs, priceKey) {
@@ -5761,7 +5767,8 @@ async function loadPL() {
     const ventasNetas   = roundCUP(ventasBrutas - devoluciones);
     const costoVentas   = sumItems(sales,    'costPrice');
     const costoMermas   = sumItems(mermas,   'costPrice');
-    const costoTotal    = roundCUP(costoVentas + costoMermas);
+    const costoCuentaCasa = sumItems(cuentaCasa, 'costPrice');
+    const costoTotal    = roundCUP(costoVentas + costoMermas + costoCuentaCasa);
     const utilidadBruta = roundCUP(ventasNetas - costoTotal);
 
     // Gastos por categoría
@@ -5791,6 +5798,7 @@ async function loadPL() {
     addSection('COSTO DE VENTAS');
     addRow('Costo de mercancía vendida', costoVentas, 'costos',  { movs: sales,  period: periodoStr });
     addRow('Mermas',                     costoMermas, 'mermas',  { movs: mermas, period: periodoStr });
+    addRow('Cuenta Casa', costoCuentaCasa, 'cuentaCasa', { movs: cuentaCasa, period: periodoStr });
     addTotal('= Costo total', costoTotal);
 
     addTotal('UTILIDAD BRUTA', utilidadBruta, 'pl-grand-total');
@@ -5892,9 +5900,9 @@ async function exportPLLine(storeKey) {
     const catsById = {}; cats.forEach(c => { catsById[c.id] = c; });
     const rate     = getExchangeRate();
 
-    if (key === 'ventas' || key === 'devoluciones' || key === 'costos' || key === 'mermas') {
+    if (key === 'ventas' || key === 'devoluciones' || key === 'costos' || key === 'mermas' || key === 'cuentaCasa') {
         const movs = params.movs || [];
-        const isCost = (key === 'costos' || key === 'mermas');
+        const isCost = (key === 'costos' || key === 'mermas' || key === 'cuentaCasa');
         worksheet.columns = [
             {key:'fecha',width:18},{key:'producto',width:32},{key:'categoria',width:15},
             {key:'ubicacion',width:14},{key:'cantidad',width:10},
