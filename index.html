@@ -1944,13 +1944,43 @@
                         <input type="number" id="productQuantity" required min="0" class="form-input">
                         <p id="productQtyHint" class="hidden" style="font-size:11.5px;color:var(--amber);margin-top:5px">🔒 Bloqueado en edición. Usa un movimiento para cambiar el stock.</p>
                     </div>
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Unidad de Medida de Venta *</label>
+                        <select id="productSaleUnit" required class="form-input form-select">
+                            <option value="unidades">Unidades</option>
+                            <option value="onzas">Onzas</option>
+                            <option value="ambos">Ambos (unidad y onza)</option>
+                        </select>
+                        <p id="productSaleUnitHint" style="font-size:11.5px;color:var(--text-3);margin-top:5px">Editable en cualquier momento. Si el producto tiene onzas sueltas de un pomo abierto, no se puede volver a "solo unidades" hasta agotarlas.</p>
+                    </div>
+                    <div id="productCapacityRow" class="hidden" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:#F8FAFC;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+                        <div>
+                            <label class="form-label">Capacidad del envase (litros)</label>
+                            <input type="number" id="productCapacityLiters" min="0" step="0.01" class="form-input" placeholder="Ej: 1">
+                        </div>
+                        <div>
+                            <label class="form-label">Capacidad del envase (onzas) *</label>
+                            <input type="number" id="productCapacityOz" min="0" step="0.01" class="form-input" placeholder="Ej: 16">
+                            <p style="font-size:11px;color:var(--text-3);margin-top:4px">1 litro = 16 onzas. Se autocompleta al llenar litros; edítala directo si el envase no se mide en litros.</p>
+                        </div>
+                    </div>
                     <div id="productPriceRow">
-                        <label class="form-label">Precio de Compra *</label>
+                        <label class="form-label" id="productPriceLabel">Precio de Compra <span style="font-weight:400;color:var(--text-3);text-transform:none">(opcional)</span></label>
                         <input type="number" id="productPrice" min="0" step="0.01" class="form-input">
                     </div>
                     <div>
-                        <label class="form-label">Precio de Venta (CUP) *</label>
+                        <label class="form-label" id="productSalePriceLabel">Precio de Venta (CUP) *</label>
                         <input type="number" id="productSalePrice" required min="0" step="0.01" class="form-input" placeholder="Precio al cliente">
+                    </div>
+                    <div id="productOzSection" class="hidden" style="grid-column:1/-1;background:#F0F7FF;border:1.5px solid #BFDBFE;border-radius:var(--radius-sm);padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div>
+                            <label class="form-label">Costo por onza (calculado)</label>
+                            <input type="text" id="productOzCostDisplay" class="form-input" disabled style="background:#EEF2F7;font-weight:600">
+                        </div>
+                        <div>
+                            <label class="form-label">Precio de Venta por Onza (CUP) *</label>
+                            <input type="number" id="productOzSalePrice" min="0" step="0.01" class="form-input" placeholder="Precio al cliente por onza">
+                        </div>
                     </div>
                     <!-- F1: Indicador de ganancia en tiempo real -->
                     <div style="grid-column:1/-1">
@@ -2002,7 +2032,7 @@
                             <option value="">Seleccionar…</option>
                             <option value="Entrada">Entrada (Compra / Reposición)</option>
                             <option value="Salida">Salida (Venta)</option>
-                            <option value="Cuenta Casa">Cuenta Casa</option>
+                            <option value="Cuenta Casa">Cuenta Casa (Retiro dueña)</option>
                             <option value="Merma">Merma (Pérdida / Daño)</option>
                             <option value="Transferencia">Transferencia (Entre ubicaciones)</option>
                             <option value="Devolución">Devolución</option>
@@ -2082,10 +2112,17 @@
                 <div style="display:flex;flex-direction:column;gap:14px">
                     <div>
                         <label class="form-label">Cantidad *</label>
-                        <input type="number" id="quickSaleQuantity" required min="1" value="1" class="form-input">
+                        <input type="number" id="quickSaleQuantity" required min="1" step="1" value="1" class="form-input">
                         <p style="font-size:11.5px;color:var(--text-3);margin-top:5px">
                             Stock disponible: <strong id="quickSaleStock">0</strong> · Ubicación: <span id="quickSaleLocation" style="font-weight:600;color:var(--navy)"></span>
                         </p>
+                    </div>
+                    <div id="qsUnitDiv" class="hidden" style="display:none">
+                        <label class="form-label">Vender por *</label>
+                        <select id="quickSaleUnit" class="form-input form-select" onchange="updateQuickSaleUnitFields()">
+                            <option value="unidad">Unidad</option>
+                            <option value="onza">Onza</option>
+                        </select>
                     </div>
                     <div class="qs-info-box">
                         <div class="qs-row" id="qsCostRow">
@@ -2775,7 +2812,7 @@ function renderPage() {
                 <td style="font-weight:600">${product.brand}${alertIcon}${costPendingBadge}${notesIcon}</td>
                 <td style="color:var(--text-2)">${product.color}</td>
                 <td><span class="badge badge-info">${product.category}</span></td>
-                <td style="font-weight:700;font-size:15px">${product.quantity}</td>
+                <td style="font-weight:700;font-size:15px">${formatStockText(product)}</td>
                 <td>
                     ${ROLES[currentRole].canViewCost ? `<span class="price-display" style="color:var(--text-2)">$${roundCUP(product.price).toFixed(2)}</span>` : ''}
                     <span class="price-display" style="color:#065F46;${ROLES[currentRole].canViewCost?'display:block;font-size:12px;font-weight:700':''}">↗ $${roundCUP(product.salePrice||product.price).toFixed(2)}</span>
@@ -2862,11 +2899,11 @@ function openProductModal(productId=null) {
     if (hintOk)   hintOk.style.display   = 'none';
     if (hintLoss) hintLoss.style.display = 'none';
 
-    // Precio de compra — solo visible para admin
+    // Precio de compra — visible solo para quien ve costos; opcional para TODOS los roles (queda "costo pendiente" si se deja en blanco)
     const priceRow = document.getElementById('productPriceRow');
     const priceInput = document.getElementById('productPrice');
     if (priceRow) priceRow.style.display = role.canViewCost ? '' : 'none';
-    if (priceInput) priceInput.required = role.canViewCost;
+    if (priceInput) priceInput.required = false;
 
     // vendor_tienda: Entrada crea solo productos en Tienda, bloquear ubicación
     const locSelect = document.getElementById('productLocation');
@@ -2890,6 +2927,33 @@ function openProductModal(productId=null) {
             document.getElementById('productLocation').value = product.location;
             document.getElementById('productMinStock').value = product.minStock;
             document.getElementById('productNotes').value = product.notes || '';
+            document.getElementById('productSaleUnit').value = product.saleUnit || 'unidades';
+            document.getElementById('productCapacityOz').value = product.capacityOz || '';
+            document.getElementById('productCapacityLiters').value = '';
+            document.getElementById('productOzSalePrice').value = product.ozSalePrice || '';
+            // U3-fix: fijar el grupo de precio al estado real del producto ANTES de llamar
+            // handleSaleUnitChange — si no, abrir un producto "onzas" para editar dispararía
+            // una limpieza falsa de precio/costo sin que nadie haya cambiado nada.
+            document.getElementById('productSaleUnit').dataset.priceGroup = (product.saleUnit === 'onzas') ? 'onza' : 'pomo';
+            handleSaleUnitChange();
+            // U1: bloquear vuelta a "solo unidades" si quedan onzas sueltas de un pomo abierto
+            const saleUnitSelect = document.getElementById('productSaleUnit');
+            const openOz = product.openOz || 0;
+            Array.from(saleUnitSelect.options).forEach(opt => { opt.disabled = false; });
+            const hint = document.getElementById('productSaleUnitHint');
+            if (openOz > 0) {
+                const unidadesOpt = Array.from(saleUnitSelect.options).find(o => o.value === 'unidades');
+                if (unidadesOpt) unidadesOpt.disabled = true;
+                if (hint) {
+                    hint.textContent = `⚠️ Hay ${openOz.toFixed(2)}oz sueltas de un pomo abierto — vende o registra ese remanente antes de volver a "solo unidades".`;
+                    hint.style.color = 'var(--amber)';
+                    hint.style.fontWeight = '600';
+                }
+            } else if (hint) {
+                hint.textContent = 'Editable en cualquier momento. Si el producto tiene onzas sueltas de un pomo abierto, no se puede volver a "solo unidades" hasta agotarlas.';
+                hint.style.color = 'var(--text-3)';
+                hint.style.fontWeight = '400';
+            }
             // F1: mostrar margen actual al editar (solo admin)
             if (role.canViewCost) setTimeout(updateMarginHint, 50);
             const qtyInput = document.getElementById('productQuantity');
@@ -2906,6 +2970,13 @@ function openProductModal(productId=null) {
         const qtyInput = document.getElementById('productQuantity');
         qtyInput.disabled = false;
         document.getElementById('productQtyHint').classList.add('hidden');
+        document.getElementById('productSaleUnit').value = 'unidades';
+        document.getElementById('productSaleUnit').dataset.priceGroup = 'pomo';
+        Array.from(document.getElementById('productSaleUnit').options).forEach(opt => { opt.disabled = false; });
+        document.getElementById('productCapacityLiters').value = '';
+        document.getElementById('productCapacityOz').value = '';
+        document.getElementById('productOzSalePrice').value = '';
+        handleSaleUnitChange();
     }
     modal.classList.add('active');
 }
@@ -2921,6 +2992,9 @@ async function closeProductModal(force=false) {
     document.getElementById('productForm').reset();
     document.getElementById('productQuantity').disabled = false;
     document.getElementById('productQtyHint').classList.add('hidden');
+    Array.from(document.getElementById('productSaleUnit').options).forEach(opt => { opt.disabled = false; });
+    document.getElementById('productSaleUnit').dataset.priceGroup = 'pomo';
+    handleSaleUnitChange();
     // Limpiar estado de costPending
     const priceInput = document.getElementById('productPrice');
     if (priceInput) { priceInput.style.borderColor=''; priceInput.style.boxShadow=''; priceInput.placeholder=''; }
@@ -2944,21 +3018,52 @@ async function saveProduct(event) {
     const notes=document.getElementById('productNotes').value.trim();
     const role = ROLES[currentRole];
 
-    // Precio de compra — solo admin lo ingresa
+    // U1: unidad de medida de venta
+    const saleUnit = document.getElementById('productSaleUnit').value;
+    let capacityOz = null, ozSalePrice = null;
+    if (saleUnit === 'onzas' || saleUnit === 'ambos') {
+        capacityOz = parseFloat(document.getElementById('productCapacityOz').value);
+        if (!capacityOz || capacityOz <= 0) { await appAlert('Indica la capacidad del envase en onzas.','warning','⚠️ Capacidad requerida'); return; }
+    }
+    if (saleUnit === 'ambos') {
+        ozSalePrice = parseFloat(document.getElementById('productOzSalePrice').value);
+        if (!ozSalePrice || ozSalePrice <= 0) { await appAlert('Indica el precio de venta por onza.','warning','⚠️ Precio por onza requerido'); return; }
+    }
+    // U1: bloqueo — no se puede volver a "solo unidades" con onzas sueltas de un pomo abierto
+    let existingOpenOz = 0;
+    if (productId) {
+        const originalForOz = await getRecordById('products', parseInt(productId));
+        existingOpenOz = originalForOz?.openOz || 0;
+    }
+    if (saleUnit === 'unidades' && existingOpenOz > 0) {
+        await appAlert(`Este producto tiene ${existingOpenOz.toFixed(2)}oz sueltas de un pomo abierto. Véndelas o regístralas como merma antes de cambiar a "solo unidades".`,'warning','⚠️ Onzas sueltas pendientes');
+        return;
+    }
+
+    // Precio de compra — opcional para CUALQUIER rol; si se deja en blanco o en 0, el producto
+    // queda "costo pendiente" (igual que ya pasaba con vendedoras, ahora también aplica al admin).
     let price = 0;
     let costPending = false;
     if (role.canViewCost) {
-        price = parseFloat(document.getElementById('productPrice').value);
-        if (!price||price<=0) { await appAlert('El precio de compra no puede ser cero o negativo.','warning','⚠️ Precio inválido'); return; }
+        const priceRaw = document.getElementById('productPrice').value;
+        const parsedPrice = parseFloat(priceRaw);
+        if (priceRaw === '' || isNaN(parsedPrice) || parsedPrice <= 0) {
+            price = 0;
+            costPending = true;
+        } else {
+            price = parsedPrice;
+            costPending = false;
+        }
     } else {
-        // vendor_tienda: precio costo desconocido — se marca pendiente
+        // Rol sin acceso a costos: nunca ve ni toca este campo — se resuelve más abajo preservando
+        // el precio real que ya existiera en el producto (si lo hay), para no borrarlo por accidente.
         price = 0;
         costPending = true;
     }
 
     const salePrice = salePriceRaw;
     if (!salePrice||salePrice<=0) { await appAlert('El precio de venta no puede ser cero o negativo.','warning','⚠️ Precio inválido'); return; }
-    if (role.canViewCost && salePrice<price) { if (!await appConfirm(`Precio de venta (${salePrice.toFixed(2)}) menor que compra (${price.toFixed(2)}). ¿Es intencional?`,'warning','⚠️ Venta a pérdida','Sí, es intencional','Cancelar')) return; }
+    if (role.canViewCost && !costPending && salePrice<price) { if (!await appConfirm(`Precio de venta (${salePrice.toFixed(2)}) menor que compra (${price.toFixed(2)}). ¿Es intencional?`,'warning','⚠️ Venta a pérdida','Sí, es intencional','Cancelar')) return; }
     if (quantity===0) { if (!await appConfirm('El producto se registrará sin stock. ¿Continuar?','warning','⚠️ Cantidad cero','Continuar','Cancelar')) return; }
     if (minStock>quantity&&quantity>0) { if (!await appConfirm(`Stock mínimo (${minStock}) mayor que cantidad inicial (${quantity}). Aparecerá como "Bajo Stock".`,'warning','⚠️ Stock mínimo alto','Entendido, continuar','Cancelar')) return; }
     const existingProducts = await getAllRecords('products');
@@ -2971,19 +3076,17 @@ async function saveProduct(event) {
     if (productId) {
         const originalProduct = await getRecordById('products', parseInt(productId));
         originalDateAdded = originalProduct?.dateAdded || Date.now();
-        // Al editar, preservar costPending si existía y el admin no completó el costo
-        if (originalProduct?.costPending && role.canViewCost && price > 0) {
-            costPending = false; // admin completó el costo — quitar bandera
-        } else if (originalProduct?.costPending && !role.canViewCost) {
-            costPending = true; // vendedora editando — mantener pendiente
-            price = originalProduct.price || 0;
-        } else if (originalProduct?.costPending && role.canViewCost && (!price || price <= 0)) {
-            costPending = true; // admin no ingresó costo aún
-        } else {
-            costPending = originalProduct?.costPending || false;
+        if (!role.canViewCost) {
+            // Rol sin acceso a costos editando: preservar el precio/estado real que ya existía,
+            // nunca sobreescribirlo con el price=0/costPending=true del bloque de arriba.
+            price = originalProduct?.price || 0;
+            costPending = originalProduct?.costPending ?? true;
         }
+        // Si canViewCost=true, price/costPending ya reflejan exactamente lo que se acaba de ingresar
+        // en este formulario — no hace falta reconciliar contra el estado anterior.
     }
-    const productData = { brand, color, category, quantity, price, salePrice, location, minStock, notes, dateAdded: originalDateAdded, costPending };
+    const productData = { brand, color, category, quantity, price, salePrice, location, minStock, notes, dateAdded: originalDateAdded, costPending,
+        saleUnit, capacityOz, ozSalePrice, openOz: existingOpenOz };
     // F1: calcular y almacenar margen (solo si hay precio de costo)
     if (price > 0) {
         productData.margin    = roundCUP(salePrice - price);
@@ -3172,7 +3275,8 @@ async function openMultiSaleModal() {
         await appAlert('No hay productos seleccionados.', 'warning', '⚠️ Sin selección');
         return;
     }
-    const todosVacios = selected.every(p => p.quantity === 0);
+    // Ya no se excluyen productos por onza — se venden con selector de unidad por fila
+    const todosVacios = selected.every(p => p.quantity === 0 && getAvailableOz(p) === 0);
     if (todosVacios) {
         await appAlert('Todos los productos seleccionados están sin stock.', 'warning', '⚠️ Sin stock disponible');
         return;
@@ -3181,11 +3285,16 @@ async function openMultiSaleModal() {
     const listEl = document.getElementById('multiSaleItemsList');
     listEl.innerHTML = '';
     selected.sort((a,b) => a.brand.localeCompare(b.brand)).forEach(p => {
-        const sp       = roundCUP(p.salePrice || p.price || 0);
-        const sinStock = p.quantity === 0;
+        const sellingOzDefault = (p.saleUnit === 'onzas');
+        const sinStock = (p.saleUnit === 'ambos') ? (p.quantity === 0 && getAvailableOz(p) === 0)
+                        : sellingOzDefault ? getAvailableOz(p) === 0
+                        : p.quantity === 0;
+        const sp       = sellingOzDefault ? getOzSalePriceOf(p) : roundCUP(p.salePrice || p.price || 0);
         const div      = document.createElement('div');
         div.className  = 'ms-sale-item';
+        div.dataset.productId = p.id;
         if (sinStock) div.style.opacity = '0.55';
+        const showsUnitPicker = (p.saleUnit === 'ambos');
         div.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
                 <div style="flex:1;min-width:0">
@@ -3193,24 +3302,30 @@ async function openMultiSaleModal() {
                     <span style="font-size:12px;color:var(--text-3)">${escHtml(p.category||'—')} · ${escHtml(p.location||'')}</span>
                 </div>
                 <div style="text-align:right;flex-shrink:0;margin-left:12px">
-                    <span class="mono" style="font-weight:700;color:#065F46;font-size:14px;display:block">${sp.toFixed(2)} CUP/u</span>
-                    <span style="font-size:11.5px;color:${sinStock?'var(--rose)':'var(--text-3)'}">Stock: ${p.quantity}</span>
+                    <span class="mono ms-unit-price" style="font-weight:700;color:#065F46;font-size:14px;display:block">${sp.toFixed(2)} ${sellingOzDefault?'CUP/oz':'CUP/u'}</span>
+                    <span class="ms-stock-label" style="font-size:11.5px;color:${sinStock?'var(--rose)':'var(--text-3)'}">Stock: ${sellingOzDefault?getAvailableOz(p).toFixed(2)+'oz':p.quantity}</span>
                 </div>
             </div>
-            <div style="display:flex;align-items:center;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <label style="font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap;text-transform:uppercase;letter-spacing:0.4px">Cantidad</label>
                 <input type="number" class="form-input ms-qty-input"
-                    data-product-id="${p.id}" data-sale-price="${sp}" data-max="${p.quantity}"
-                    min="${sinStock?0:1}" max="${p.quantity}" value="${sinStock?0:1}"
+                    data-product-id="${p.id}"
+                    min="${sinStock?0:(sellingOzDefault?'0.1':'1')}" step="${sellingOzDefault?'0.1':'1'}"
+                    max="${sellingOzDefault?getAvailableOz(p):p.quantity}" value="${sinStock?0:1}"
                     ${sinStock?'disabled':''}
-                    style="width:90px;padding:6px 10px"
+                    style="width:80px;padding:6px 10px"
                     oninput="updateMultiSaleTotal()">
+                ${showsUnitPicker ? `
+                <select class="form-input form-select ms-unit-select" data-product-id="${p.id}" style="width:100px;padding:6px 8px;font-size:12.5px" onchange="handleMsUnitChange(${p.id})">
+                    <option value="unidad">Unidad</option>
+                    <option value="onza">Onza</option>
+                </select>` : ''}
                 <div style="flex:1;text-align:right">
                     <span style="font-size:12px;color:var(--text-3)">Subtotal</span>
                     <span class="mono ms-subtotal" style="font-weight:700;color:#065F46;display:block;font-size:14px">${sinStock?'0.00':sp.toFixed(2)} CUP</span>
                 </div>
             </div>
-            ${sinStock ? '<p style="font-size:11.5px;color:var(--rose);margin-top:8px;font-weight:600">⚠️ Sin stock — no se incluirá en la venta</p>' : ''}`;
+            <p class="ms-sinstock-msg" style="font-size:11.5px;color:var(--rose);margin-top:8px;font-weight:600;${sinStock?'':'display:none'}">⚠️ Sin stock — no se incluirá en la venta</p>`;
         listEl.appendChild(div);
     });
     updateMultiSaleTotal();
@@ -3221,16 +3336,55 @@ async function openMultiSaleModal() {
     document.getElementById('multiSaleModal').classList.add('active');
 }
 
+// Determina si una fila de venta múltiple está vendiendo por onza (según el select de unidad, si existe)
+function msRowSellingOz(product, row) {
+    if (product.saleUnit === 'onzas') return true;
+    if (product.saleUnit === 'ambos') {
+        const sel = row.querySelector('.ms-unit-select');
+        return sel && sel.value === 'onza';
+    }
+    return false;
+}
+
+function handleMsUnitChange(productId) {
+    const product = productsById[productId];
+    const row = document.querySelector(`.ms-sale-item[data-product-id="${productId}"]`);
+    if (!product || !row) return;
+    const sellingOz = msRowSellingOz(product, row);
+    const qtyInput  = row.querySelector('.ms-qty-input');
+    const priceEl   = row.querySelector('.ms-unit-price');
+    const stockEl   = row.querySelector('.ms-stock-label');
+
+    if (sellingOz) {
+        const availableOz = getAvailableOz(product);
+        qtyInput.step = '0.1'; qtyInput.min = '0.1'; qtyInput.max = availableOz;
+        if (parseFloat(qtyInput.value) > availableOz) qtyInput.value = Math.min(1, availableOz);
+        priceEl.textContent = `${getOzSalePriceOf(product).toFixed(2)} CUP/oz`;
+        stockEl.textContent = `Stock: ${availableOz.toFixed(2)}oz`;
+    } else {
+        qtyInput.step = '1'; qtyInput.min = '1'; qtyInput.max = product.quantity;
+        if (parseInt(qtyInput.value) > product.quantity) qtyInput.value = product.quantity;
+        priceEl.textContent = `${roundCUP(product.salePrice||product.price||0).toFixed(2)} CUP/u`;
+        stockEl.textContent = `Stock: ${product.quantity}`;
+    }
+    updateMultiSaleTotal();
+}
+
 function updateMultiSaleTotal() {
     let total = 0;
     document.querySelectorAll('.ms-qty-input:not(:disabled)').forEach(input => {
-        const max   = parseInt(input.dataset.max) || 0;
-        const raw   = parseInt(input.value) || 0;
+        const row = input.closest('.ms-sale-item');
+        const productId = parseInt(input.dataset.productId);
+        const product = productsById[productId];
+        if (!product || !row) return;
+        const sellingOz = msRowSellingOz(product, row);
+        const max   = sellingOz ? getAvailableOz(product) : (product.quantity || 0);
+        const raw   = parseFloat(input.value) || 0;
         const qty   = Math.max(0, Math.min(raw, max));
-        const price = parseFloat(input.dataset.salePrice) || 0;
+        const price = sellingOz ? getOzSalePriceOf(product) : roundCUP(product.salePrice||product.price||0);
         const sub   = roundCUP(qty * price);
         total       = roundCUP(total + sub);
-        const subEl = input.closest('.ms-sale-item')?.querySelector('.ms-subtotal');
+        const subEl = row.querySelector('.ms-subtotal');
         if (subEl) subEl.textContent = `${sub.toFixed(2)} CUP`;
     });
     const totalEl = document.getElementById('multiSaleTotal');
@@ -3252,20 +3406,25 @@ async function confirmMultiSale() {
         const saleNotes = document.getElementById('multiSaleNotes').value.trim() || 'Venta múltiple';
         for (const input of document.querySelectorAll('.ms-qty-input:not(:disabled)')) {
             const productId = parseInt(input.dataset.productId);
-            const max       = parseInt(input.dataset.max) || 0;
-            const qty       = Math.max(0, Math.min(parseInt(input.value)||0, max));
+            const row = input.closest('.ms-sale-item');
+            const product = await getRecordById('products', productId);
+            if (!product || !row) continue;
+            const sellingOz = msRowSellingOz(product, row);
+            const saleUnitUsed = sellingOz ? 'onza' : 'unidad';
+            const max = sellingOz ? getAvailableOz(product) : (product.quantity || 0);
+            const qty = sellingOz ? Math.max(0, Math.min(parseFloat(input.value)||0, max))
+                                   : Math.max(0, Math.min(parseInt(input.value)||0, max));
             if (qty === 0) continue;
-            const product   = productsById[productId];
-            if (!product) continue;
-            if (qty > product.quantity) {
-                await appAlert(`Stock insuficiente para "${escHtml(product.brand)}". Disponible: ${product.quantity}.`, 'warning', '⚠️ Sin stock suficiente');
+            if (qty > max) {
+                await appAlert(`Stock insuficiente para "${escHtml(product.brand)}". Disponible: ${sellingOz?max.toFixed(2)+'oz':max}.`, 'warning', '⚠️ Sin stock suficiente');
                 return;
             }
             items.push({
                 productId,
                 quantity:  qty,
-                salePrice: roundCUP(product.salePrice || product.price || 0),
-                costPrice: roundCUP(product.price || 0),
+                saleUnitUsed,
+                salePrice: sellingOz ? getOzSalePriceOf(product) : roundCUP(product.salePrice || product.price || 0),
+                costPrice: sellingOz ? getOzCostPrice(product)   : roundCUP(product.price || 0),
                 location:  product.location
             });
         }
@@ -3282,7 +3441,20 @@ async function confirmMultiSale() {
         for (const item of items) {
             const p = await getRecordById('products', item.productId);
             if (!p) continue;
-            p.quantity -= item.quantity;
+            if (item.saleUnitUsed==='onza') {
+                // Consumir onzas sueltas primero; abrir pomo nuevo del stock cerrado si no alcanza
+                let need = item.quantity;
+                if (p.openOz >= need) {
+                    p.openOz = roundCUP(p.openOz - need);
+                } else {
+                    need = roundCUP(need - p.openOz);
+                    const pomosToOpen = Math.ceil(need / p.capacityOz);
+                    p.quantity -= pomosToOpen;
+                    p.openOz = roundCUP((pomosToOpen * p.capacityOz) - need);
+                }
+            } else {
+                p.quantity -= item.quantity;
+            }
             await updateRecord('products', p);
             productsById[p.id] = p;
 
@@ -3320,44 +3492,102 @@ async function confirmMultiSale() {
 async function openQuickSaleModal(productId) {
     const product = await getRecordById('products', productId);
     if (!product) return;
-    const salePrice = product.salePrice||product.price;
-    const profit = salePrice-product.price;
-    const canViewCost = ROLES[currentRole].canViewCost;
     document.getElementById('quickSaleProductId').value = productId;
     document.getElementById('quickSaleProductName').textContent = `${product.brand} — ${product.color} · ${product.category}`;
-    document.getElementById('quickSaleStock').textContent = product.quantity;
     document.getElementById('quickSaleLocation').textContent = product.location;
     document.getElementById('quickSaleQuantity').value = 1;
-    document.getElementById('quickSaleQuantity').max = product.quantity;
     document.getElementById('quickSaleNotes').value = '';
-    document.getElementById('qpCost').textContent = product.price.toFixed(2)+' CUP';
-    document.getElementById('qpSale').textContent = salePrice.toFixed(2)+' CUP';
+    document.getElementById('quickSaleModal').dataset.productId = productId;
+
+    const unitDiv = document.getElementById('qsUnitDiv');
+    const unitSelect = document.getElementById('quickSaleUnit');
+    const showsUnitPicker = (product.saleUnit === 'ambos');
+    unitDiv.classList.toggle('hidden', !showsUnitPicker);
+    unitDiv.style.display = showsUnitPicker ? 'block' : 'none';
+    unitSelect.value = 'unidad';
+
+    updateQuickSaleUnitFields();
+    document.getElementById('quickSaleModal').classList.add('active');
+}
+
+// Ajusta stock/costo/venta/step según la unidad elegida en Venta Rápida (unidad vs onza)
+function updateQuickSaleUnitFields() {
+    const productId = parseInt(document.getElementById('quickSaleModal').dataset.productId);
+    const product = productsById[productId];
+    if (!product) return;
+    const unitSelect = document.getElementById('quickSaleUnit');
+    const canViewCost = ROLES[currentRole].canViewCost;
+    const sellingOz = (product.saleUnit === 'onzas') || (product.saleUnit === 'ambos' && unitSelect.value === 'onza');
+
+    const qtyInput = document.getElementById('quickSaleQuantity');
+    let cost, sale;
+    if (sellingOz) {
+        const availableOz = getAvailableOz(product);
+        document.getElementById('quickSaleStock').textContent = `${availableOz.toFixed(2)}oz`;
+        qtyInput.step = '0.1'; qtyInput.min = '0.1'; qtyInput.max = availableOz;
+        if (parseFloat(qtyInput.value) > availableOz) qtyInput.value = availableOz > 0 ? Math.min(1, availableOz) : 0;
+        cost = getOzCostPrice(product); sale = getOzSalePriceOf(product);
+    } else {
+        document.getElementById('quickSaleStock').textContent = product.quantity;
+        qtyInput.step = '1'; qtyInput.min = '1'; qtyInput.max = product.quantity;
+        if (parseInt(qtyInput.value) > product.quantity) qtyInput.value = product.quantity;
+        cost = roundCUP(product.price); sale = roundCUP(product.salePrice || product.price);
+    }
+    const profit = sale - cost;
+    document.getElementById('qpCost').textContent = cost.toFixed(2)+(sellingOz?' CUP/oz':' CUP');
+    document.getElementById('qpSale').textContent = sale.toFixed(2)+(sellingOz?' CUP/oz':' CUP');
     const profitEl = document.getElementById('qpProfit');
-    profitEl.textContent = profit.toFixed(2)+' CUP';
+    profitEl.textContent = profit.toFixed(2)+(sellingOz?' CUP/oz':' CUP');
     profitEl.style.color = profit<0?'var(--rose)':'var(--emerald)';
-    // Ocultar precio compra y ganancia para vendedoras
     const costRow   = document.getElementById('qsCostRow');
     const profitRow = document.getElementById('qsProfitRow');
     if (costRow)   costRow.style.display   = canViewCost ? '' : 'none';
     if (profitRow) profitRow.style.display = canViewCost ? '' : 'none';
-    document.getElementById('quickSaleModal').dataset.salePrice = salePrice;
-    document.getElementById('quickSaleModal').classList.add('active');
+    document.getElementById('quickSaleModal').dataset.salePrice = sale;
 }
 function closeQuickSaleModal() { document.getElementById('quickSaleModal').classList.remove('active'); }
 
 async function saveQuickSale(event) {
     event.preventDefault();
     const productId=parseInt(document.getElementById('quickSaleProductId').value);
-    const quantity=parseInt(document.getElementById('quickSaleQuantity').value);
     const notes=document.getElementById('quickSaleNotes').value;
     const product=await getRecordById('products',productId);
     if (!product) { await appAlert('No se pudo encontrar el producto.','error','Error'); return; }
-    if (quantity>product.quantity) { await appAlert(`Stock insuficiente. Disponible: ${product.quantity} en ${product.location}.`,'warning','⚠️ Sin stock'); document.getElementById('quickSaleQuantity').value=product.quantity; return; }
-    const frozenCostPrice=roundCUP(product.price);
-    const frozenSalePrice=roundCUP(product.salePrice||product.price);
-    product.quantity-=quantity;
+
+    const unitSelect = document.getElementById('quickSaleUnit');
+    let saleUnitUsed = 'unidad';
+    if (product.saleUnit === 'onzas') saleUnitUsed = 'onza';
+    else if (product.saleUnit === 'ambos' && unitSelect.value === 'onza') saleUnitUsed = 'onza';
+
+    const quantity = saleUnitUsed==='onza' ? parseFloat(document.getElementById('quickSaleQuantity').value) : parseInt(document.getElementById('quickSaleQuantity').value);
+    if (!quantity||quantity<=0) { await appAlert('La cantidad debe ser mayor que cero.','warning','⚠️ Cantidad inválida'); return; }
+
+    if (saleUnitUsed==='onza') {
+        const availableOz = getAvailableOz(product);
+        if (quantity>availableOz) { await appAlert(`Stock insuficiente. Disponible: ${availableOz.toFixed(2)}oz en ${product.location}.`,'warning','⚠️ Sin stock'); document.getElementById('quickSaleQuantity').value=availableOz; return; }
+    } else if (quantity>product.quantity) {
+        await appAlert(`Stock insuficiente. Disponible: ${product.quantity} en ${product.location}.`,'warning','⚠️ Sin stock'); document.getElementById('quickSaleQuantity').value=product.quantity; return;
+    }
+
+    const frozenCostPrice = (saleUnitUsed==='onza') ? getOzCostPrice(product) : roundCUP(product.price);
+    const frozenSalePrice = (saleUnitUsed==='onza') ? getOzSalePriceOf(product) : roundCUP(product.salePrice||product.price);
+
+    if (saleUnitUsed==='onza') {
+        // U2/quick-sale: consumir onzas sueltas primero; abrir pomo nuevo si no alcanza
+        let need = quantity;
+        if (product.openOz >= need) {
+            product.openOz = roundCUP(product.openOz - need);
+        } else {
+            need = roundCUP(need - product.openOz);
+            const pomosToOpen = Math.ceil(need / product.capacityOz);
+            product.quantity -= pomosToOpen;
+            product.openOz = roundCUP((pomosToOpen * product.capacityOz) - need);
+        }
+    } else {
+        product.quantity-=quantity;
+    }
     await updateRecord('products',product);
-    await addRecord('movements',{ type:'Salida', items:[{productId,quantity,salePrice:frozenSalePrice,costPrice:frozenCostPrice,location:product.location}], sourceLocation:product.location, notes:notes||'Venta rápida', date:Date.now(), undone:false, registeredBy:currentUser||'Admin' });
+    await addRecord('movements',{ type:'Salida', items:[{productId,quantity,salePrice:frozenSalePrice,costPrice:frozenCostPrice,location:product.location,saleUnitUsed}], sourceLocation:product.location, notes:notes||'Venta rápida', date:Date.now(), undone:false, registeredBy:currentUser||'Admin' });
     stampLastModified();
     showToast('La venta fue registrada correctamente.','success','💰 Venta completada');
     closeQuickSaleModal(); loadMovements(); loadProducts(); loadDashboard();
@@ -3391,9 +3621,16 @@ function addSaleItem(filterLocation='') {
             </div>
             <div>
                 <label class="form-label">Cantidad *</label>
-                <input type="number" id="itemQty_${idx}" required min="1" value="1" class="form-input" disabled>
+                <input type="number" id="itemQty_${idx}" required min="1" step="1" value="1" class="form-input" disabled oninput="handleItemQtyInput(${idx})">
                 <p style="font-size:11.5px;color:var(--text-3);margin-top:4px">Stock: <span id="itemStock_${idx}">—</span>${showSalePrice?' · Venta: <span id="itemSalePriceLabel_'+idx+'" style="font-weight:600;color:var(--emerald)">—</span>':''}</p>
             </div>
+        </div>
+        <div id="itemUnitDiv_${idx}" class="hidden" style="margin-top:12px">
+            <label class="form-label">Vender por *</label>
+            <select id="itemSaleUnit_${idx}" class="form-input form-select" onchange="handleItemUnitChange(${idx})">
+                <option value="unidad">Unidad</option>
+                <option value="onza">Onza</option>
+            </select>
         </div>`;
     list.appendChild(div);
     filterProductDropdown(idx, filterLocation);
@@ -3425,12 +3662,13 @@ function filterProductDropdown(idx, forcedLocation=null) {
     if (filtered.length===0) { dropdown.innerHTML='<div class="product-option no-results">No se encontraron productos</div>'; }
     else {
         filtered.forEach(p=>{
-            const sp=p.salePrice||p.price;
+            const sp = getOzSalePriceOf(p) && (p.saleUnit==='onzas') ? getOzSalePriceOf(p) : (p.salePrice||p.price);
             const stockColor=p.quantity===0?'var(--text-3)':p.quantity<=p.minStock?'var(--rose)':'var(--emerald)';
             const div=document.createElement('div');
             div.className='product-option'; div.dataset.id=p.id;
+            const priceLabel = p.saleUnit==='onzas' ? `${sp.toFixed(2)} CUP/oz` : `${sp.toFixed(2)} CUP`;
             div.innerHTML=`<div class="opt-name">${p.brand} <span style="color:var(--text-3);font-weight:400">— ${p.color}</span></div>
-                <div class="opt-meta">${p.category} · ${p.location} · Stock: <span style="color:${stockColor};font-weight:700">${p.quantity}</span> · Venta: ${sp.toFixed(2)} CUP</div>`;
+                <div class="opt-meta">${p.category} · ${p.location} · Stock: <span style="color:${stockColor};font-weight:700">${formatStockText(p)}</span> · Venta: ${priceLabel}</div>`;
             div.addEventListener('mousedown', (e)=>{ e.preventDefault(); selectProductInItem(idx,p.id); });
             dropdown.appendChild(div);
         });
@@ -3448,6 +3686,43 @@ function handleDropdownKey(event, idx) {
     else if (event.key==='Enter') { event.preventDefault(); const h=dropdown.querySelector('.product-option.highlighted'); if(h&&h.dataset.id)selectProductInItem(idx,parseInt(h.dataset.id)); }
     else if (event.key==='Escape') dropdown.classList.remove('open');
 }
+// ── U2: helpers de conversión onza / pomo ──
+function getOzCostPrice(product) {
+    if (product.saleUnit === 'onzas') return product.price || 0;
+    if (product.saleUnit === 'ambos' && product.capacityOz > 0) return roundCUP((product.price || 0) / product.capacityOz);
+    return 0;
+}
+function getOzSalePriceOf(product) {
+    if (product.saleUnit === 'onzas') return product.salePrice || 0;
+    if (product.saleUnit === 'ambos') return product.ozSalePrice || 0;
+    return 0;
+}
+function getAvailableOz(product) {
+    // total de onzas disponibles: pomos cerrados convertidos + onzas sueltas del pomo abierto
+    return roundCUP((product.quantity || 0) * (product.capacityOz || 0) + (product.openOz || 0));
+}
+// U3: texto legible de stock para tabla/dropdown/exports — pomos siempre visibles, onzas sueltas como dato adicional
+function formatStockText(product) {
+    if (product.saleUnit === 'onzas') {
+        return `${getAvailableOz(product).toFixed(2)}oz`;
+    }
+    if (product.saleUnit === 'ambos' && (product.openOz || 0) > 0) {
+        return `${product.quantity} + ${product.openOz.toFixed(2)}oz`;
+    }
+    return `${product.quantity}`;
+}
+// U3: valor de inventario a costo — evita mezclar pomos con costo por onza en productos onza/ambos
+function getInventoryValue(product) {
+    if (product.saleUnit === 'onzas') {
+        return roundCUP(getAvailableOz(product) * (product.price || 0));
+    }
+    if (product.saleUnit === 'ambos') {
+        const ozCost = getOzCostPrice(product);
+        return roundCUP((product.quantity||0)*(product.price||0) + (product.openOz||0)*ozCost);
+    }
+    return roundCUP((product.quantity||0) * (product.price||0));
+}
+
 function selectProductInItem(idx, productId) {
     const product= productsById[productId];
     if (!product) return;
@@ -3469,14 +3744,59 @@ function selectProductInItem(idx, productId) {
     const stockEl=document.getElementById(`itemStock_${idx}`);
     const saleLabelEl=document.getElementById(`itemSalePriceLabel_${idx}`);
     const qtyInput=document.getElementById(`itemQty_${idx}`);
-    if (stockEl) stockEl.textContent=product.quantity;
+    const unitDiv=document.getElementById(`itemUnitDiv_${idx}`);
+    const unitSelect=document.getElementById(`itemSaleUnit_${idx}`);
+
+    const movType=document.getElementById('movementType').value;
+    const consumesStock = (movType==='Salida'||movType==='Cuenta Casa'||movType==='Merma');
+    const showsUnitPicker = consumesStock && product.saleUnit==='ambos';
+    if (unitDiv) unitDiv.classList.toggle('hidden', !showsUnitPicker);
+    if (unitSelect) unitSelect.value='unidad';
+
     if (qtyInput) {
-        const movType=document.getElementById('movementType').value;
         if (movType==='Entrada'||movType==='Devolución') { qtyInput.removeAttribute('max'); }
-        else { qtyInput.max=product.quantity; }
         qtyInput.disabled=false; qtyInput.focus();
     }
+    updateItemUnitFields(idx, product);
     if (saleLabelEl) { const sp=product.salePrice||product.price; saleLabelEl.textContent=sp.toFixed(2)+' CUP'; }
+}
+
+// Ajusta stock mostrado, max/step del input y precio de venta según la unidad elegida (unidad vs onza)
+function updateItemUnitFields(idx, product) {
+    const stockEl=document.getElementById(`itemStock_${idx}`);
+    const saleLabelEl=document.getElementById(`itemSalePriceLabel_${idx}`);
+    const qtyInput=document.getElementById(`itemQty_${idx}`);
+    const unitSelect=document.getElementById(`itemSaleUnit_${idx}`);
+    const movType=document.getElementById('movementType').value;
+    const sellingOz = (product.saleUnit==='onzas') || (product.saleUnit==='ambos' && unitSelect && unitSelect.value==='onza');
+
+    if (movType==='Entrada'||movType==='Devolución') return; // no aplica onzas en esos tipos
+
+    if (sellingOz) {
+        const availableOz = getAvailableOz(product);
+        if (stockEl) stockEl.textContent = `${availableOz.toFixed(2)}oz (${product.quantity} pomo${product.quantity!==1?'s':''} cerrado${product.quantity!==1?'s':''} + ${(product.openOz||0).toFixed(2)}oz sueltas)`;
+        if (qtyInput) { qtyInput.step='0.1'; qtyInput.min='0.1'; qtyInput.max=availableOz; }
+        if (saleLabelEl) saleLabelEl.textContent = getOzSalePriceOf(product).toFixed(2)+' CUP/oz';
+    } else {
+        if (stockEl) stockEl.textContent = product.quantity;
+        if (qtyInput) { qtyInput.step='1'; qtyInput.min='1'; qtyInput.max=product.quantity; }
+        if (saleLabelEl) saleLabelEl.textContent = (product.salePrice||product.price).toFixed(2)+' CUP';
+    }
+}
+
+function handleItemUnitChange(idx) {
+    const productId=parseInt(document.getElementById(`itemProduct_${idx}`).value);
+    const product=productsById[productId];
+    if (!product) return;
+    updateItemUnitFields(idx, product);
+}
+
+function handleItemQtyInput(idx) {
+    const qtyInput=document.getElementById(`itemQty_${idx}`);
+    if (!qtyInput) return;
+    const max=parseFloat(qtyInput.max);
+    const val=parseFloat(qtyInput.value);
+    if (!isNaN(max)&&!isNaN(val)&&val>max) qtyInput.value=max;
 }
 document.addEventListener('click', (e)=>{ if (!e.target.closest('.product-search-wrap')) document.querySelectorAll('.product-dropdown').forEach(d=>d.classList.remove('open')); });
 
@@ -3593,7 +3913,7 @@ function renderMovementsPage() {
                 <td style="font-size:12.5px;color:var(--text-2)">${date}${movement.undone?'<br><span style="font-size:11px;color:var(--text-3);font-style:italic">Deshecho</span>':''}</td>
                 <td><span class="badge ${badgeClass}">${movement.type}</span></td>
                 <td style="font-size:13px;font-weight:500">${name}</td>
-                <td style="font-weight:700">${item.quantity}</td>
+                <td style="font-weight:700">${item.quantity}${item.saleUnitUsed==='onza'?'oz':''}</td>
                 <td style="color:var(--text-2)">${sourceLocation}</td>
                 ${saleCells}
                 <td style="font-size:12.5px;color:var(--text-3)">${movement.notes||'—'}${supNoteCell}</td>
@@ -3662,15 +3982,34 @@ async function saveMovement(event) {
     for (const div of itemDivs) {
         const idx=div.id.split('_')[1];
         const productId=parseInt(document.getElementById(`itemProduct_${idx}`).value);
-        const quantity=parseInt(document.getElementById(`itemQty_${idx}`).value);
         if (!productId) { await appAlert('Selecciona un producto en todos los campos.','warning','⚠️ Producto requerido'); return; }
-        if (!quantity||quantity<1) { await appAlert('La cantidad debe ser mayor que cero.','warning','⚠️ Cantidad inválida'); return; }
         const product=await getRecordById('products',productId);
         if (!product) { await appAlert('No se pudo encontrar el producto.','error','Error'); return; }
-        if ((type==='Salida'||type==='Cuenta Casa'||type==='Merma'||type==='Transferencia')&&quantity>product.quantity) {
-            await appAlert(`Stock insuficiente para "${product.brand}".\nDisponible: ${product.quantity} · Solicitado: ${quantity}`,'warning','⚠️ Stock insuficiente'); return;
+
+        // U2: determinar unidad de venta usada en este item — Transferencia y Devolución
+        // siempre mueven pomos completos; onza solo aplica a Salida/Cuenta Casa/Merma
+        const checksStock   = (type==='Salida'||type==='Cuenta Casa'||type==='Merma'||type==='Transferencia');
+        const supportsOnza  = (type==='Salida'||type==='Cuenta Casa'||type==='Merma');
+        let saleUnitUsed = 'unidad';
+        if (supportsOnza) {
+            if (product.saleUnit === 'onzas') saleUnitUsed = 'onza';
+            else if (product.saleUnit === 'ambos') {
+                const unitSelect = document.getElementById(`itemSaleUnit_${idx}`);
+                saleUnitUsed = (unitSelect && unitSelect.value === 'onza') ? 'onza' : 'unidad';
+            }
         }
-        itemsToProcess.push({productId, quantity, product});
+        const quantity = saleUnitUsed==='onza' ? parseFloat(document.getElementById(`itemQty_${idx}`).value) : parseInt(document.getElementById(`itemQty_${idx}`).value);
+        if (!quantity||quantity<=0) { await appAlert('La cantidad debe ser mayor que cero.','warning','⚠️ Cantidad inválida'); return; }
+
+        if (checksStock) {
+            if (saleUnitUsed==='onza') {
+                const availableOz = getAvailableOz(product);
+                if (quantity>availableOz) { await appAlert(`Stock insuficiente para "${product.brand}".\nDisponible: ${availableOz.toFixed(2)}oz · Solicitado: ${quantity}oz`,'warning','⚠️ Stock insuficiente'); return; }
+            } else if (quantity>product.quantity) {
+                await appAlert(`Stock insuficiente para "${product.brand}".\nDisponible: ${product.quantity} · Solicitado: ${quantity}`,'warning','⚠️ Stock insuficiente'); return;
+            }
+        }
+        itemsToProcess.push({productId, quantity, product, saleUnitUsed});
     }
     if (type==='Transferencia') {
         const newLoc=document.getElementById('movementNewLocation').value;
@@ -3693,9 +4032,11 @@ async function saveMovement(event) {
     const newProdsToCreate  = [];   // productos destino nuevos (Transferencia a ubicación sin registro)
     const prodIdsToDelete   = [];   // BF-4: orígenes con quantity=0 tras transferencia total
 
-    for (const {productId, quantity, product} of itemsToProcess) {
-        const frozenCost  = roundCUP(product.price);
-        const frozenSale  = (type==='Salida'||type==='Devolución') ? roundCUP(product.salePrice||product.price)
+    for (const {productId, quantity, product, saleUnitUsed} of itemsToProcess) {
+        // U2: costo/venta se congelan en la unidad realmente vendida (pomo u onza)
+        const frozenCost  = (saleUnitUsed==='onza') ? getOzCostPrice(product) : roundCUP(product.price);
+        const frozenSale  = (type==='Salida'||type==='Devolución')
+                                ? (saleUnitUsed==='onza' ? getOzSalePriceOf(product) : roundCUP(product.salePrice||product.price))
                             : (type==='Cuenta Casa') ? frozenCost
                             : null;
         const itemLocation = product.location;
@@ -3705,6 +4046,17 @@ async function saveMovement(event) {
 
         if (type==='Entrada'||type==='Devolución') {
             prodInMap.quantity += quantity;
+        } else if (saleUnitUsed==='onza' && (type==='Salida'||type==='Cuenta Casa'||type==='Merma')) {
+            // U2: consumir onzas sueltas primero; si no alcanza, abrir pomos nuevos del stock cerrado
+            let need = quantity;
+            if (prodInMap.openOz >= need) {
+                prodInMap.openOz = roundCUP(prodInMap.openOz - need);
+            } else {
+                need = roundCUP(need - prodInMap.openOz);
+                const pomosToOpen = Math.ceil(need / prodInMap.capacityOz);
+                prodInMap.quantity -= pomosToOpen;
+                prodInMap.openOz = roundCUP((pomosToOpen * prodInMap.capacityOz) - need);
+            }
         } else if (type==='Salida'||type==='Cuenta Casa'||type==='Merma') {
             prodInMap.quantity -= quantity;
         } else if (type==='Transferencia') {
@@ -3742,7 +4094,7 @@ async function saveMovement(event) {
             destLocation = newLocation;
         }
 
-        movementsToSave.push({productId, quantity, frozenSale, frozenCost, itemLocation, destProductId, destLocation, product});
+        movementsToSave.push({productId, quantity, frozenSale, frozenCost, itemLocation, destProductId, destLocation, product, saleUnitUsed});
     }
 
     // ── Crear productos nuevos de destino y resolver tempIds ──
@@ -3776,7 +4128,7 @@ async function saveMovement(event) {
             type,
             items: [{ productId: mov.productId, quantity: mov.quantity, salePrice: mov.frozenSale,
                       costPrice: mov.frozenCost, location: mov.itemLocation,
-                      destProductId: realDestId, destLocation: mov.destLocation }],
+                      destProductId: realDestId, destLocation: mov.destLocation, saleUnitUsed: mov.saleUnitUsed }],
             sourceLocation: sourceLocation || mov.itemLocation || '',
             notes,
             date: sharedDate,
@@ -3901,7 +4253,14 @@ async function undoMovement(movementId) {
     for (const item of items) {
         const product=await getRecordById('products',item.productId);
         if (!product) continue;
-        if (movement.type==='Salida'||movement.type==='Cuenta Casa'||movement.type==='Merma') { product.quantity+=item.quantity; }
+        if (item.saleUnitUsed==='onza' && (movement.type==='Salida'||movement.type==='Cuenta Casa'||movement.type==='Merma')) {
+            // U2: reponer onzas y renormalizar — no necesariamente el mismo pomo que se abrió, pero el total de onzas queda exacto
+            const cap = product.capacityOz || 1;
+            const restoreTotal = roundCUP(item.quantity + (product.openOz||0));
+            const addPomos = Math.floor(restoreTotal / cap);
+            product.quantity += addPomos;
+            product.openOz = roundCUP(restoreTotal - (addPomos*cap));
+        } else if (movement.type==='Salida'||movement.type==='Cuenta Casa'||movement.type==='Merma') { product.quantity+=item.quantity; }
         else if (movement.type==='Entrada'||movement.type==='Devolución') { product.quantity=Math.max(0,product.quantity-item.quantity); }
         await updateRecord('products',product);
     }
@@ -4561,7 +4920,7 @@ async function exportProductsExcel() {
     const products=await getAllRecords('products'); const workbook=new ExcelJS.Workbook(); const worksheet=workbook.addWorksheet('Inventario');
     worksheet.columns=[
         {header:'Marca y Tipo',key:'brand',width:30},{header:'Color',key:'color',width:15},{header:'Categoría',key:'category',width:15},
-        {header:'Cantidad',key:'quantity',width:10},{header:'P. Compra (CUP)',key:'price',width:18},{header:'P. Venta (CUP)',key:'salePrice',width:18},
+        {header:'Cantidad (unidades)',key:'quantity',width:14},{header:'Stock (detalle)',key:'stockDetail',width:20},{header:'P. Compra (CUP)',key:'price',width:18},{header:'P. Venta (CUP)',key:'salePrice',width:18},
         {header:'Margen Unit.',key:'margin',width:15},{header:'Valor Total (Compra)',key:'totalValue',width:20},{header:'Ubicación',key:'location',width:15},
         {header:'Stock Mínimo',key:'minStock',width:12},{header:'Estado Stock',key:'stockStatus',width:14},{header:'Fecha de Entrada',key:'dateAdded',width:20},{header:'Días en Almacén',key:'daysInStorage',width:15}
     ];
@@ -4575,9 +4934,9 @@ async function exportProductsExcel() {
         if (p.quantity===0) stockStatus='Sin stock';
         else if (p.quantity<=p.minStock) stockStatus='Bajo';
         const row=worksheet.addRow({
-            brand:p.brand,color:p.color,category:p.category,quantity:p.quantity,
+            brand:p.brand,color:p.color,category:p.category,quantity:p.quantity,stockDetail:formatStockText(p),
             price:roundCUP(p.price),salePrice:roundCUP(p.salePrice||p.price),
-            margin:roundCUP((p.salePrice||p.price)-p.price),totalValue:roundCUP(p.quantity*p.price),
+            margin:roundCUP((p.salePrice||p.price)-p.price),totalValue:getInventoryValue(p),
             location:p.location,minStock:p.minStock,stockStatus,dateAdded:new Date(p.dateAdded),daysInStorage:days
         });
         if (p.quantity===0) row.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFE4E6'}};
@@ -4586,7 +4945,7 @@ async function exportProductsExcel() {
     ['price','salePrice','margin','totalValue'].forEach(col=>{worksheet.getColumn(col).numFmt='#,##0.00';});
     ['quantity','minStock','daysInStorage'].forEach(col=>{worksheet.getColumn(col).numFmt='#,##0';});
     worksheet.getColumn('dateAdded').numFmt='dd/mm/yyyy';
-    worksheet.autoFilter={from:{row:1,column:1},to:{row:1,column:13}};
+    worksheet.autoFilter={from:{row:1,column:1},to:{row:1,column:14}};
     worksheet.views=[{state:'frozen',ySplit:1}];
     const buffer=await workbook.xlsx.writeBuffer(); const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); const url=window.URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`Inventario_${new Date().toISOString().split('T')[0]}.xlsx`; a.click();
     showToast('Inventario exportado con filtros activados.','success','📥 Inventario exportado');
@@ -4599,7 +4958,7 @@ async function exportMovementsExcel() {
     const worksheet = workbook.addWorksheet('Movimientos');
     worksheet.columns = [
         {header:'Fecha',key:'date',width:20},{header:'Tipo',key:'type',width:14},{header:'Producto',key:'product',width:32},
-        {header:'Color',key:'color',width:16},{header:'Categoría',key:'category',width:16},{header:'Cantidad',key:'quantity',width:10},
+        {header:'Color',key:'color',width:16},{header:'Categoría',key:'category',width:16},{header:'Cantidad',key:'quantity',width:10},{header:'Unidad Vendida',key:'saleUnitLabel',width:14},
         {header:'Ubicación',key:'location',width:16},{header:'P. Costo (CUP)',key:'costPrice',width:16},{header:'P. Venta (CUP)',key:'salePrice',width:16},
         {header:'Total (CUP)',key:'total',width:16},{header:'Registrado por',key:'registeredBy',width:18},{header:'Notas',key:'notes',width:36}
     ];
@@ -4622,7 +4981,7 @@ async function exportMovementsExcel() {
             const sp       = roundCUP(item.salePrice || cp);
             const total    = m.type === 'Salida' ? roundCUP(sp * item.quantity) : roundCUP(cp * item.quantity);
             const row = worksheet.addRow({
-                date:dateStr,type:m.type,product:brand,color,category,quantity:item.quantity,
+                date:dateStr,type:m.type,product:brand,color,category,quantity:item.quantity,saleUnitLabel:item.saleUnitUsed==='onza'?'Onza':'Unidad',
                 location:item.location||m.sourceLocation||'—',costPrice:cp,
                 salePrice:m.type==='Salida'?sp:'—',total,registeredBy:m.registeredBy||'—',notes:m.notes||'—'
             });
@@ -4632,7 +4991,7 @@ async function exportMovementsExcel() {
     }
     ['costPrice','salePrice','total'].forEach(col => { worksheet.getColumn(col).numFmt = '#,##0.00'; });
     worksheet.getColumn('quantity').numFmt = '#,##0';
-    worksheet.autoFilter = {from:{row:1,column:1},to:{row:1,column:12}};
+    worksheet.autoFilter = {from:{row:1,column:1},to:{row:1,column:13}};
     worksheet.views = [{state:'frozen',ySplit:1}];
     const buffer = await workbook.xlsx.writeBuffer();
     const blob   = new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -4701,6 +5060,76 @@ async function buildPriceAlertsIndex() {
 
         if (diferencia >= 1) priceAlertsIndex[prod.id] = { diferencia, salePriceNecesario, marginPct };
     });
+}
+
+// ── U1: unidad de medida de venta (onzas / unidades / ambos) ──
+const OZ_PER_LITER = 16;
+
+function handleCapacityLitersInput() {
+    const liters = parseFloat(document.getElementById('productCapacityLiters').value);
+    if (!isNaN(liters) && liters > 0) {
+        document.getElementById('productCapacityOz').value = roundCUP(liters * OZ_PER_LITER);
+    }
+    updateOzCostDisplay();
+}
+
+function handleSaleUnitChange() {
+    const unit = document.getElementById('productSaleUnit').value;
+    const capacityRow = document.getElementById('productCapacityRow');
+    const ozSection   = document.getElementById('productOzSection');
+    const capacityOzInput = document.getElementById('productCapacityOz');
+    const priceLabel     = document.getElementById('productPriceLabel');
+    const salePriceLabel = document.getElementById('productSalePriceLabel');
+    const saleUnitSelect = document.getElementById('productSaleUnit');
+
+    // U3-fix: 'unidades' y 'ambos' guardan precio/costo POR POMO; 'onzas' los reinterpreta como POR ONZA.
+    // Si el cambio cruza esa frontera de significado, el número viejo queda mal etiquetado — hay que limpiarlo,
+    // no arrastrarlo, para no guardar un costo por onza que en realidad es el costo del pomo completo.
+    const newGroup = (unit === 'onzas') ? 'onza' : 'pomo';
+    const prevGroup = saleUnitSelect.dataset.priceGroup || 'pomo';
+    const priceField = document.getElementById('productPrice');
+    const salePriceField = document.getElementById('productSalePrice');
+    if (newGroup !== prevGroup && (priceField.value || salePriceField.value)) {
+        priceField.value = '';
+        salePriceField.value = '';
+        showToast('Precio y costo se limpiaron: cambiaron de significado (por pomo ↔ por onza). Ingrésalos de nuevo en la nueva unidad.','warning','⚠️ Vuelve a ingresar el precio');
+    }
+    saleUnitSelect.dataset.priceGroup = newGroup;
+
+    const needsCapacity = (unit === 'onzas' || unit === 'ambos');
+    // Fix: estos divs traen "display:grid" fijo en el atributo style del HTML — un inline style
+    // siempre le gana a una clase (aunque sea Tailwind .hidden), así que hay que pisarlo directo
+    // con style.display en vez de solo alternar la clase, o el cuadrante nunca se oculta de verdad.
+    capacityRow.classList.toggle('hidden', !needsCapacity);
+    capacityRow.style.display = needsCapacity ? 'grid' : 'none';
+    capacityOzInput.required = needsCapacity;
+
+    const showsOzSection = (unit === 'ambos');
+    ozSection.classList.toggle('hidden', !showsOzSection);
+    ozSection.style.display = showsOzSection ? 'grid' : 'none';
+    document.getElementById('productOzSalePrice').required = showsOzSection;
+
+    if (unit === 'onzas') {
+        priceLabel.innerHTML = 'Costo por Onza (CUP) <span style="font-weight:400;color:var(--text-3);text-transform:none">(opcional)</span>';
+        salePriceLabel.textContent = 'Precio de Venta por Onza (CUP) *';
+    } else {
+        priceLabel.innerHTML = 'Precio de Compra <span style="font-weight:400;color:var(--text-3);text-transform:none">(opcional)</span>';
+        salePriceLabel.textContent = 'Precio de Venta (CUP) *';
+    }
+    updateOzCostDisplay();
+}
+
+function updateOzCostDisplay() {
+    const unit = document.getElementById('productSaleUnit').value;
+    if (unit !== 'ambos') return;
+    const cost = parseFloat(document.getElementById('productPrice').value);
+    const capacityOz = parseFloat(document.getElementById('productCapacityOz').value);
+    const display = document.getElementById('productOzCostDisplay');
+    if (!isNaN(cost) && cost > 0 && !isNaN(capacityOz) && capacityOz > 0) {
+        display.value = `${roundCUP(cost / capacityOz).toFixed(2)} CUP / onza`;
+    } else {
+        display.value = '—';
+    }
 }
 
 // ── F1: Indicador de margen en tiempo real ──
@@ -5155,6 +5584,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
     // F1: listeners para el indicador de margen en tiempo real
     document.getElementById('productPrice').addEventListener('input', updateMarginHint);
     document.getElementById('productSalePrice').addEventListener('input', updateMarginHint);
+    document.getElementById('productPrice').addEventListener('input', updateOzCostDisplay);
+    document.getElementById('productSaleUnit').addEventListener('change', handleSaleUnitChange);
+    document.getElementById('productCapacityLiters').addEventListener('input', handleCapacityLitersInput);
+    document.getElementById('productCapacityOz').addEventListener('input', updateOzCostDisplay);
     document.getElementById('filterCategory').addEventListener('change',filterProducts);
     document.getElementById('filterLocation').addEventListener('change',filterProducts);
     document.getElementById('productForm').addEventListener('submit',saveProduct);
@@ -5798,7 +6231,7 @@ async function loadPL() {
     addSection('COSTO DE VENTAS');
     addRow('Costo de mercancía vendida', costoVentas, 'costos',  { movs: sales,  period: periodoStr });
     addRow('Mermas',                     costoMermas, 'mermas',  { movs: mermas, period: periodoStr });
-    addRow('Cuenta Casa', costoCuentaCasa, 'cuentaCasa', { movs: cuentaCasa, period: periodoStr });
+    addRow('Cuenta Casa (retiro dueña)', costoCuentaCasa, 'cuentaCasa', { movs: cuentaCasa, period: periodoStr });
     addTotal('= Costo total', costoTotal);
 
     addTotal('UTILIDAD BRUTA', utilidadBruta, 'pl-grand-total');
@@ -5905,12 +6338,12 @@ async function exportPLLine(storeKey) {
         const isCost = (key === 'costos' || key === 'mermas' || key === 'cuentaCasa');
         worksheet.columns = [
             {key:'fecha',width:18},{key:'producto',width:32},{key:'categoria',width:15},
-            {key:'ubicacion',width:14},{key:'cantidad',width:10},
+            {key:'ubicacion',width:14},{key:'cantidad',width:10},{key:'unidad',width:12},
             {key:'precioCosto',width:16},{key:'precioVenta',width:16},
             {key:'total',width:16},{key:'registradoPor',width:18}
         ];
         const hRow = worksheet.getRow(4);
-        hRow.values = ['Fecha','Producto','Categoría','Ubicación','Cantidad','P. Costo (CUP)','P. Venta (CUP)','Total (CUP)','Registrado por'];
+        hRow.values = ['Fecha','Producto','Categoría','Ubicación','Cantidad','Unidad Vendida','P. Costo (CUP)','P. Venta (CUP)','Total (CUP)','Registrado por'];
         hRow.font   = { bold:true, color:{argb:'FFFFFFFF'} };
         hRow.fill   = { type:'pattern', pattern:'solid', fgColor:{argb:'FF0EA5E9'} };
         hRow.height = 22;
@@ -5925,7 +6358,7 @@ async function exportPLLine(storeKey) {
                 const cp   = roundCUP(item.costPrice || (prod ? prod.price : 0));
                 const sp   = roundCUP(item.salePrice || cp);
                 const tot  = isCost ? roundCUP(cp * item.quantity) : roundCUP(sp * item.quantity);
-                worksheet.addRow({ fecha: new Date(m.date).toLocaleString('es-ES'), producto: name, categoria: cat, ubicacion: loc, cantidad: item.quantity, precioCosto: cp, precioVenta: sp, total: tot, registradoPor: m.registeredBy || '—' });
+                worksheet.addRow({ fecha: new Date(m.date).toLocaleString('es-ES'), producto: name, categoria: cat, ubicacion: loc, cantidad: item.quantity, unidad: item.saleUnitUsed==='onza'?'Onza':'Unidad', precioCosto: cp, precioVenta: sp, total: tot, registradoPor: m.registeredBy || '—' });
             }
         }
         ['precioCosto','precioVenta','total'].forEach(c => { worksheet.getColumn(c).numFmt = '#,##0.00'; });
@@ -5956,7 +6389,7 @@ async function exportPLLine(storeKey) {
         ['monto','amountCUP'].forEach(c => { worksheet.getColumn(c).numFmt = '#,##0.00'; });
     }
 
-    worksheet.autoFilter = { from:{row:4,column:1}, to:{row:4,column:9} };
+    worksheet.autoFilter = { from:{row:4,column:1}, to:{row:4,column:10} };
     worksheet.views = [{ state:'frozen', ySplit:4 }];
 
     const buffer = await workbook.xlsx.writeBuffer();
